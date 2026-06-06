@@ -1,13 +1,16 @@
+FROM docker:29-cli AS docker_cli
+
 FROM python:3.11-slim
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_DEFAULT_TIMEOUT=180
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends docker.io iptables ca-certificates \
+    && apt-get install -y --no-install-recommends iptables ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
 COPY astrbot_plugin_vulnclaw /app/astrbot_plugin_vulnclaw
 COPY supervisor /app/supervisor
 RUN pip install --no-cache-dir --timeout "$PIP_DEFAULT_TIMEOUT" --index-url "$PIP_INDEX_URL" \
