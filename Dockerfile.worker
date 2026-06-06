@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ARG VULNCLAW_VERSION=0.2.9
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nmap ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 65532 nonroot \
+    && useradd --uid 65532 --gid 65532 --no-create-home --shell /usr/sbin/nologin nonroot
+
+WORKDIR /app
+COPY astrbot_plugin_vulnclaw/vendor/vulnclaw /app/vulnclaw
+COPY worker /app/worker
+RUN pip install --no-cache-dir \
+    "httpx>=0.27.0" "pydantic>=2.0.0" "pydantic-settings>=2.0.0" \
+    "pyyaml>=6.0" "toml>=0.10.0" "jinja2>=3.1.0" "beautifulsoup4>=4.12.0" \
+    "lxml>=4.9.0" "pycryptodome>=3.19.0"
+
+ENV PYTHONPATH=/app
+USER 65532:65532
+ENTRYPOINT ["python", "-m", "worker.runtime"]

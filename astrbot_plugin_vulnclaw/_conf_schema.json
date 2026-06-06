@@ -1,0 +1,52 @@
+{
+  "worker_url": {
+    "description": "Supervisor 地址，例如 http://vulnclaw-supervisor:8765。",
+    "type": "string",
+    "default": "http://127.0.0.1:8765"
+  },
+  "worker_secret": {
+    "description": "插件与 Supervisor 共用的 HMAC 密钥。",
+    "type": "string",
+    "default": ""
+  },
+  "enable_high_risk_modes": {
+    "description": "是否允许 run、exploit、persistent 和 post-exploitation。",
+    "type": "bool",
+    "default": false
+  },
+  "default_task_timeout_seconds": {
+    "description": "单任务默认超时秒数。",
+    "type": "int",
+    "default": 1800
+  },
+  "approval_ttl_seconds": {
+    "description": "一次性审批口令有效期。",
+    "type": "int",
+    "default": 600
+  },
+  "agent_max_steps": {
+    "description": "单任务允许模型执行的最大工具循环步数。",
+    "type": "int",
+    "default": 24
+  },
+  "tool_timeout_seconds": {
+    "description": "单次隔离工具调用的超时秒数。",
+    "type": "int",
+    "default": 120
+  },
+  "report_retention_days": {
+    "description": "报告保留天数。",
+    "type": "int",
+    "default": 30
+  },
+  "notify_stage_updates": {
+    "description": "是否向发起会话发送阶段摘要。",
+    "type": "bool",
+    "default": true
+  },
+  "enable_mcp": {
+    "description": "是否允许 Worker 启用 VulnClaw MCP 工具。",
+    "type": "bool",
+    "default": false
+  }
+}

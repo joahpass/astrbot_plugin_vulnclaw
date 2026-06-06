@@ -1,0 +1,36 @@
+services:
+  vulnclaw-supervisor:
+    build:
+      context: .
+      dockerfile: Dockerfile.supervisor
+    image: astrbot-vulnclaw-supervisor:0.1.0
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      VULNCLAW_WORKER_SECRET: ${VULNCLAW_WORKER_SECRET:?set a 32+ byte secret}
+      VULNCLAW_TASK_IMAGE: astrbot-vulnclaw-worker:0.1.0
+      VULNCLAW_TASK_NETWORK: vulnclaw-tasks
+      VULNCLAW_ENFORCE_IPTABLES: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - vulnclaw-supervisor-data:/var/lib/vulnclaw
+    depends_on:
+      vulnclaw-worker-image:
+        condition: service_completed_successfully
+
+  vulnclaw-worker-image:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: astrbot-vulnclaw-worker:0.1.0
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+volumes:
+  vulnclaw-supervisor-data:
+
+networks:
+  default:
+    name: vulnclaw-control

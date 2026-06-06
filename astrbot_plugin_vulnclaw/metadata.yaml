@@ -1,0 +1,6 @@
+name: astrbot_plugin_vulnclaw
+display_name: VulnClaw 授权漏洞测试
+desc: 基于 VulnClaw 的隔离式授权漏洞测试任务管理插件
+version: v0.1.0
+author: Codex
+repo: "https://github.com/joahpass/astrbot_plugin_vulnclaw"

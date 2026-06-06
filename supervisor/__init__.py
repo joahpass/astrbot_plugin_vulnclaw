@@ -1,0 +1,2 @@
+"""VulnClaw isolated task supervisor."""
+
