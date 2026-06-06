@@ -1,0 +1,29 @@
+FROM python:3.11-slim
+
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_DEFAULT_TIMEOUT=180
+
+RUN groupadd --gid 65532 nonroot \
+    && useradd --uid 65532 --gid 65532 --create-home --home-dir /home/nonroot \
+       --shell /usr/sbin/nologin nonroot \
+    && mkdir -p /data/config /data/output \
+    && chown -R 65532:65532 /data
+
+WORKDIR /app
+COPY astrbot_plugin_vulnclaw/vendor/vulnclaw /app/vulnclaw
+COPY web /app/web
+RUN pip install --no-cache-dir --timeout "$PIP_DEFAULT_TIMEOUT" --index-url "$PIP_INDEX_URL" \
+    "fastapi>=0.115.0" "uvicorn>=0.30.0" "httpx>=0.27.0" "openai>=1.0.0" \
+    "pydantic>=2.0.0" "pydantic-settings>=2.0.0" "pyyaml>=6.0" \
+    "toml>=0.10.0" "jinja2>=3.1.0" "beautifulsoup4>=4.12.0" \
+    "lxml>=4.9.0" "pycryptodome>=3.19.0" "typer>=0.12.0" \
+    "rich>=13.0.0" "prompt-toolkit>=3.0.0"
+
+ENV PYTHONPATH=/app \
+    HOME=/data \
+    VULNCLAW_CONFIG_DIR=/data/config \
+    VULNCLAW_SESSION_OUTPUT_DIR=/data/output
+
+EXPOSE 1145
+USER 65532:65532
+CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "1145"]

@@ -6,6 +6,12 @@ https://github.com/joahpass/astrbot_plugin_vulnclaw
 
 仅允许测试自有或明确授权的目标。
 
+## Web UI
+
+完整部署仓库提供独立 Web UI，容器内部端口为 `1145`，并要求 HTTP Basic Auth。
+它使用上游 VulnClaw 自身的模型配置，不复用 AstrBot 模型，也不经过 QQ 审批与
+Supervisor scope。受控测试优先使用 QQ 命令；Web UI 只用于独立的授权测试流程。
+
 ## 快速检查
 
 ```text

@@ -41,6 +41,8 @@ openssl rand -hex 32
 
 ```dotenv
 VULNCLAW_WORKER_SECRET=replace-with-random-secret
+VULNCLAW_WEB_USERNAME=admin
+VULNCLAW_WEB_PASSWORD=replace-with-another-strong-password
 ```
 
 构建并启动 Supervisor：
@@ -58,6 +60,23 @@ curl http://127.0.0.1:8765/health
 - `enable_high_risk_modes`: 首次部署保持关闭
 
 不要将 Supervisor 的 8765 端口暴露到公网。
+
+## VulnClaw Web UI
+
+项目提供独立的上游 VulnClaw Web UI 容器，内部端口固定为 `1145`：
+
+```bash
+docker compose up -d vulnclaw-web
+curl http://127.0.0.1:1145/healthz
+```
+
+浏览器访问服务器映射后的 1145 端口，使用 `.env` 中的
+`VULNCLAW_WEB_USERNAME` 和 `VULNCLAW_WEB_PASSWORD` 登录。除健康检查外，
+所有页面和 API 都需要 HTTP Basic Auth。
+
+Web UI 是上游 VulnClaw 的独立运行模式，不复用 AstrBot 当前会话模型，也不经过
+QQ 审批、Supervisor 签名或 Worker scope。需要在 Web UI 中单独配置模型，且只能
+用于已授权目标。公网开放时还应在云防火墙中限制来源 IP，并优先通过 HTTPS 反向代理访问。
 
 ## QQ 命令
 
