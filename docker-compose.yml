@@ -4,6 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile.supervisor
     image: astrbot-vulnclaw-supervisor:0.1.0
+    command:
+      - uvicorn
+      - supervisor.app:app
+      - --host
+      - 127.0.0.1
+      - --port
+      - "8765"
     restart: unless-stopped
     network_mode: host
     cap_add:
