@@ -20,9 +20,10 @@ services:
       VULNCLAW_TASK_IMAGE: astrbot-vulnclaw-worker:0.1.0
       VULNCLAW_TASK_NETWORK: vulnclaw-tasks
       VULNCLAW_ENFORCE_IPTABLES: "true"
+      VULNCLAW_SUPERVISOR_DATA: /var/lib/astrbot-vulnclaw
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - vulnclaw-supervisor-data:/var/lib/vulnclaw
+      - /var/lib/astrbot-vulnclaw:/var/lib/astrbot-vulnclaw
     depends_on:
       vulnclaw-worker-image:
         condition: service_completed_successfully
@@ -34,9 +35,6 @@ services:
     image: astrbot-vulnclaw-worker:0.1.0
     entrypoint: ["/bin/true"]
     restart: "no"
-
-volumes:
-  vulnclaw-supervisor-data:
 
 networks:
   default:

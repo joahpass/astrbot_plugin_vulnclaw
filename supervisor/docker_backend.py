@@ -65,6 +65,9 @@ class DockerBackend:
             if task_dir.exists():
                 raise DockerBackendError("任务容器已经存在")
             task_dir.mkdir(parents=True)
+            task_dir.chmod(0o770)
+            if hasattr(os, "chown"):
+                os.chown(task_dir, 65532, 65532)
             try:
                 self._write_json(task_dir / "request.json", spec)
                 self._write_json(
@@ -77,6 +80,10 @@ class DockerBackend:
                         "report_path": "",
                     },
                 )
+                (task_dir / "request.json").chmod(0o640)
+                (task_dir / "state.json").chmod(0o660)
+                if hasattr(os, "chown"):
+                    os.chown(task_dir / "request.json", 65532, 65532)
                 self._ensure_network()
                 self._validate_not_supervisor_host(spec)
                 created = self._run(
@@ -153,6 +160,9 @@ class DockerBackend:
         self._write_json(
             request_path, {"tool_name": tool_name, "arguments": arguments}
         )
+        request_path.chmod(0o640)
+        if hasattr(os, "chown"):
+            os.chown(request_path, 65532, 65532)
         try:
             result = self._run(
                 [
