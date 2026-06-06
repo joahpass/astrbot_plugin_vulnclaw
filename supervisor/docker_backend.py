@@ -108,7 +108,7 @@ class DockerBackend:
                         "--tmpfs",
                         "/tmp:rw,noexec,nosuid,size=64m",
                         "--network",
-                        "none",
+                        self.network,
                         "--user",
                         "65532:65532",
                         "--volume",
@@ -119,11 +119,11 @@ class DockerBackend:
                     ],
                     check=True,
                 )
-                self._run(
-                    ["docker", "network", "connect", self.network, container], check=True
-                )
-                self._apply_egress_policy(container, spec)
                 self._run(["docker", "start", container], check=True)
+                # The idle entrypoint performs no network operations. Docker assigns
+                # the container IP only after start, so install egress rules before
+                # exposing the task through the Supervisor API.
+                self._apply_egress_policy(container, spec)
                 return {
                     "run_id": created.stdout.strip(),
                     "status": "running",
