@@ -106,7 +106,7 @@ export function HistoryPage({ selectedTarget, onSelectTarget, onOpenHome, onOpen
     <section className="history-page">
       <SectionCard
         title="History"
-        aside={<span className="status-badge">{targetTasks.length} tasks</span>}
+        aside={<span className="status-badge">{targetTasks.length} 个任务</span>}
       >
         <label className="field">
           <span>Target</span>

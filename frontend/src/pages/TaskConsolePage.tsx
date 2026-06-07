@@ -187,7 +187,7 @@ export function TaskConsolePage({
             <option value="exploit">Verification</option>
             <option value="persistent">Continuous Scan</option>
           </select>
-          <small>API command: {command}</small>
+          <small>API 命令：{command}</small>
         </label>
 
         <label className="field field-wide">

@@ -136,7 +136,7 @@ export function ReportsPage({ selectedTarget, focus }: ReportsPageProps) {
     <section className="reports-page">
       <SectionCard
         title="Reports"
-        aside={<span className="status-badge">{reports.length} files</span>}
+        aside={<span className="status-badge">{reports.length} 个文件</span>}
       >
         <div className="report-hero">
           <div>
