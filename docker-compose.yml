@@ -46,9 +46,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
+      network: host
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
         PIP_DEFAULT_TIMEOUT: ${PIP_DEFAULT_TIMEOUT:-180}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     image: astrbot-vulnclaw-web:0.1.0
     restart: unless-stopped
     ports:

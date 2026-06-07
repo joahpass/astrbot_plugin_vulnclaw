@@ -1,3 +1,16 @@
+FROM node:20-alpine AS frontend_builder
+
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm config set registry "$NPM_REGISTRY" \
+    && npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm ci --no-audit --no-fund
+COPY frontend ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
@@ -11,6 +24,7 @@ RUN groupadd --gid 65532 nonroot \
 
 WORKDIR /app
 COPY astrbot_plugin_vulnclaw/vendor/vulnclaw /app/vulnclaw
+COPY --from=frontend_builder /frontend/dist /app/frontend/dist
 COPY web /app/web
 RUN pip install --no-cache-dir --timeout "$PIP_DEFAULT_TIMEOUT" --index-url "$PIP_INDEX_URL" \
     "fastapi>=0.115.0" "uvicorn>=0.30.0" "httpx>=0.27.0" "openai>=1.0.0" \

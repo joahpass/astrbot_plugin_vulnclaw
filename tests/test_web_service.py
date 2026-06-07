@@ -27,5 +27,16 @@ def test_compose_exposes_authenticated_web_ui_without_docker_socket() -> None:
     assert '"1145:1145"' in web_service
     assert "VULNCLAW_WEB_PASSWORD" in web_service
     assert "/var/run/docker.sock" not in web_service
+    assert "network: host" in web_service
     assert "vulnclaw-web-data:/data" in web_service
     assert "read_only: true" in web_service
+
+
+def test_web_image_builds_and_copies_react_frontend() -> None:
+    dockerfile = (ROOT / "Dockerfile.web").read_text(encoding="utf-8")
+    assert "FROM node:20-alpine AS frontend_builder" in dockerfile
+    assert "NPM_REGISTRY=https://registry.npmmirror.com" in dockerfile
+    assert "npm ci --no-audit --no-fund" in dockerfile
+    assert "RUN npm run build" in dockerfile
+    assert "/frontend/dist /app/frontend/dist" in dockerfile
+    assert (ROOT / "frontend" / "package-lock.json").is_file()
