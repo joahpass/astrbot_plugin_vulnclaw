@@ -427,6 +427,11 @@ class AgentCore:
             "[startup_error]",
             "[sdk_unavailable]",
             "[tool_unavailable]",
+            "[config_error]",
+            "[unsupported_mode]",
+            "[attach_failed]",
+            "[service_unavailable]",
+            "[execution_failed]",
             "[SKIP]",
         )
         record["success"] = bool(clean.strip()) and not clean.lstrip().startswith(
