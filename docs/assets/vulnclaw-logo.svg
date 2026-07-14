@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">VulnClaw logo</title>
+  <desc id="desc">A neon green shield marked by three claw slashes on a dark circuit background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#0f2a2b"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#6ee7b7"/>
+      <stop offset="1" stop-color="#16a34a"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="28" y="28" width="456" height="456" rx="100" fill="none" stroke="#34d399" stroke-opacity=".22" stroke-width="3"/>
+
+  <g fill="none" stroke="#34d399" stroke-opacity=".22" stroke-width="4">
+    <path d="M52 148h76l34-34h54M52 356h82l30 30h64M460 132h-68l-30-30h-62M460 374h-74l-34 34h-56"/>
+    <path d="M78 78v56M434 78v58M78 378v56M434 376v58"/>
+  </g>
+  <g fill="#34d399">
+    <circle cx="52" cy="148" r="7"/><circle cx="52" cy="356" r="7"/>
+    <circle cx="460" cy="132" r="7"/><circle cx="460" cy="374" r="7"/>
+    <circle cx="78" cy="78" r="7"/><circle cx="434" cy="78" r="7"/>
+    <circle cx="78" cy="434" r="7"/><circle cx="434" cy="434" r="7"/>
+  </g>
+
+  <path d="M256 78c57 42 108 52 144 58v99c0 96-56 163-144 203-88-40-144-107-144-203v-99c36-6 87-16 144-58Z"
+        fill="#071b1c" stroke="url(#shield)" stroke-width="18" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M256 104c47 32 88 42 119 49v79c0 77-42 133-119 171-77-38-119-94-119-171v-79c31-7 72-17 119-49Z"
+        fill="url(#shield)" fill-opacity=".09"/>
+
+  <g fill="none" stroke="#86efac" stroke-width="25" stroke-linecap="round" filter="url(#glow)">
+    <path d="M211 173 174 317"/>
+    <path d="M274 162 237 330"/>
+    <path d="M337 178 300 317"/>
+  </g>
+  <g fill="none" stroke="#ecfdf5" stroke-width="7" stroke-linecap="round" opacity=".9">
+    <path d="M207 175 172 313"/>
+    <path d="M270 164 235 326"/>
+    <path d="M333 180 298 313"/>
+  </g>
+
+  <path d="M189 354c43 29 91 35 139 8" fill="none" stroke="#34d399" stroke-width="8" stroke-linecap="round" opacity=".7"/>
+</svg>
+
