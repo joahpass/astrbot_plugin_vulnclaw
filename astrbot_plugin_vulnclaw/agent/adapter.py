@@ -123,6 +123,26 @@ class AstrBotAgentRunner:
             raise AgentUnavailableError("AstrBot Agent Tool API 不可用") from exc
 
         runner = self
+        evidence: list[dict[str, Any]] = []
+
+        def record_evidence(
+            tool: str,
+            arguments: dict[str, Any],
+            *,
+            success: bool,
+            result: Any = None,
+            error: str = "",
+        ) -> dict[str, Any]:
+            item = {
+                "evidence_id": f"evidence-{len(evidence) + 1:03d}",
+                "tool": tool,
+                "arguments": dict(arguments),
+                "success": bool(success),
+                "result": result,
+                "error": error,
+            }
+            evidence.append(item)
+            return item
 
         class RemoteTool(FunctionTool):
             def __init__(self, name: str, description: str, parameters: dict[str, Any]):
@@ -139,10 +159,17 @@ class AstrBotAgentRunner:
                     and str(kwargs.get("method", "GET")).upper()
                     not in {"GET", "HEAD", "OPTIONS"}
                 ):
+                    item = record_evidence(
+                        self.name,
+                        kwargs,
+                        success=False,
+                        error="当前低风险模式禁止产生状态变化的 HTTP 方法",
+                    )
                     return json.dumps(
                         {
                             "success": False,
-                            "error": "当前低风险模式禁止产生状态变化的 HTTP 方法",
+                            "evidence_id": item["evidence_id"],
+                            "error": item["error"],
                         },
                         ensure_ascii=False,
                     )
@@ -152,15 +179,59 @@ class AstrBotAgentRunner:
                     tool=self.name,
                     arguments=kwargs,
                 )
-                result = await runner.worker.call_tool(task.task_id, self.name, kwargs)
+                try:
+                    result = await runner.worker.call_tool(task.task_id, self.name, kwargs)
+                except Exception as exc:
+                    item = record_evidence(
+                        self.name, kwargs, success=False, error=str(exc)
+                    )
+                    runner.audit.record(
+                        "model_tool_result",
+                        task_id=task.task_id,
+                        tool=self.name,
+                        evidence_id=item["evidence_id"],
+                        ok=False,
+                        result_summary=str(exc)[:2000],
+                    )
+                    return json.dumps(
+                        {
+                            "success": False,
+                            "evidence_id": item["evidence_id"],
+                            "error": str(exc),
+                        },
+                        ensure_ascii=False,
+                    )
+
+                success = bool(result.get("ok", True)) and bool(
+                    result.get("success", result.get("ok", True))
+                )
+                error = "" if success else str(
+                    result.get("error") or result.get("detail") or "工具执行失败"
+                )
+                item = record_evidence(
+                    self.name,
+                    kwargs,
+                    success=success,
+                    result=result.get("result") if success else None,
+                    error=error,
+                )
                 runner.audit.record(
                     "model_tool_result",
                     task_id=task.task_id,
                     tool=self.name,
-                    ok=result.get("ok", True),
+                    evidence_id=item["evidence_id"],
+                    ok=success,
                     result_summary=str(result)[:2000],
                 )
-                return json.dumps(result, ensure_ascii=False)
+                payload: dict[str, Any] = {
+                    "success": success,
+                    "evidence_id": item["evidence_id"],
+                }
+                if success:
+                    payload["result"] = result.get("result")
+                else:
+                    payload["error"] = error
+                return json.dumps(payload, ensure_ascii=False)
 
         allowed_names = set(TOOL_SCHEMAS)
         if task.mode.value == "report":
@@ -210,11 +281,26 @@ class AstrBotAgentRunner:
         text = str(getattr(response, "completion_text", "") or "")
         if not text:
             raise AgentUnavailableError("模型未返回最终测试结果")
-        result = self._parse_result(task, text)
+        successful_actions = [
+            item
+            for item in evidence
+            if item["success"] and item["tool"] in {"nmap_scan", "fetch"}
+        ]
+        if task.mode.value != "report" and not successful_actions:
+            failed = [item for item in evidence if not item["success"]]
+            detail = failed[-1]["error"][:500] if failed else "模型没有调用网络执行工具"
+            raise AgentUnavailableError(f"没有可验证的工具执行证据：{detail}")
+
+        result = self._parse_result(task, text, evidence=evidence)
+        result["report_markdown"] = self._append_evidence(
+            result["report_markdown"], evidence
+        )
         self.audit.record(
             "agent_finished",
             task_id=task.task_id,
             finding_count=len(result["findings"]),
+            successful_tool_calls=sum(1 for item in evidence if item["success"]),
+            total_tool_calls=len(evidence),
         )
         return result
 
@@ -226,7 +312,8 @@ class AstrBotAgentRunner:
             "遇到拒绝或不确定边界时停止该动作。所有结论必须有工具结果证据。"
             f"当前模式为 {task.mode.value}。最终仅输出 JSON 对象，字段为 "
             "summary、findings、report_markdown。findings 是对象数组，每项包含 "
-            "title、severity、evidence、remediation。"
+            "title、severity、evidence、evidence_ids、remediation。每个发现必须在 "
+            "evidence_ids 中引用成功工具结果返回的 evidence_id；没有证据就不得报告发现。"
         )
 
     @staticmethod
@@ -243,7 +330,13 @@ class AstrBotAgentRunner:
         )
 
     @classmethod
-    def _parse_result(cls, task: TaskRecord, text: str) -> dict[str, Any]:
+    def _parse_result(
+        cls,
+        task: TaskRecord,
+        text: str,
+        *,
+        evidence: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         candidate = text.strip()
         fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", candidate, re.S)
         if fenced:
@@ -261,8 +354,21 @@ class AstrBotAgentRunner:
         if not isinstance(findings, list):
             findings = []
         normalized = []
+        successful_ids = {
+            str(item.get("evidence_id"))
+            for item in (evidence or [])
+            if item.get("success")
+        }
         for item in findings[:500]:
             if not isinstance(item, dict):
+                continue
+            evidence_ids = item.get("evidence_ids", [])
+            if isinstance(evidence_ids, str):
+                evidence_ids = [evidence_ids]
+            if not isinstance(evidence_ids, list):
+                evidence_ids = []
+            referenced_ids = [str(value) for value in evidence_ids]
+            if evidence is not None and not successful_ids.intersection(referenced_ids):
                 continue
             normalized.append(
                 {
@@ -273,6 +379,9 @@ class AstrBotAgentRunner:
                     "evidence": cls._redact_text(
                         str(item.get("evidence", ""))
                     )[:8000],
+                    "evidence_ids": [
+                        value for value in referenced_ids if value in successful_ids
+                    ],
                     "remediation": cls._redact_text(
                         str(item.get("remediation", ""))
                     )[:8000],
@@ -285,6 +394,25 @@ class AstrBotAgentRunner:
         if not report:
             report = cls._fallback_report(task, summary)
         return {"summary": summary, "findings": normalized, "report_markdown": report}
+
+    @classmethod
+    def _append_evidence(
+        cls, report_markdown: str, evidence: list[dict[str, Any]]
+    ) -> str:
+        lines = [report_markdown.rstrip(), "", "## 执行证据", ""]
+        if not evidence:
+            lines.append("- 无工具执行证据。")
+            return "\n".join(lines).rstrip() + "\n"
+        for item in evidence:
+            status = "成功" if item.get("success") else "失败"
+            detail = item.get("result") if item.get("success") else item.get("error")
+            clean_detail = cls._redact_text(str(detail or ""))[:2000]
+            lines.append(
+                f"- `{item.get('evidence_id', '')}` `{item.get('tool', '')}`：{status}"
+            )
+            if clean_detail:
+                lines.append(f"  - 结果摘要：`{clean_detail}`")
+        return "\n".join(lines).rstrip() + "\n"
 
     @staticmethod
     def _redact_text(text: str) -> str:
@@ -311,3 +439,4 @@ class AstrBotAgentRunner:
             f"- 端口：`{', '.join(str(port) for port in task.scope.ports)}`\n\n"
             f"## 模型结论\n\n{text}\n"
         )
+
