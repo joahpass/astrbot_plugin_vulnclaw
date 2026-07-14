@@ -46,10 +46,12 @@ async def auto_pentest(
             user_input=agent.runtime.auto_skill_input or user_input,
         )
         round_context = agent._build_round_context(round_num, max_rounds)
+        tool_call_start = len(agent.runtime.tool_calls)
 
         try:
             response_text = await call_llm_auto(agent, system_prompt, round_context)
             result.output = response_text
+            result.tool_calls = list(agent.runtime.tool_calls[tool_call_start:])
             agent.context.add_assistant_message(f"[Round {round_num} 分析] {response_text}")
             agent._finding_parser.parse(response_text)
 
@@ -164,6 +166,7 @@ async def auto_pentest(
 
         except Exception as e:
             result.output = f"[!] Round {round_num} 错误: {e}"
+            result.tool_calls = list(agent.runtime.tool_calls[tool_call_start:])
             agent.runtime.consecutive_errors += 1
             if agent.runtime.consecutive_errors >= 3:
                 result.should_continue = False
@@ -292,3 +295,4 @@ async def persistent_pentest(
                     should_stop = True
 
     return cycle_results
+
