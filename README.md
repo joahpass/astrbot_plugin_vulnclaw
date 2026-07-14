@@ -53,7 +53,13 @@ docker compose up -d vulnclaw-supervisor
 curl http://127.0.0.1:8765/health
 ```
 
-把 `astrbot_plugin_vulnclaw/` 放到 AstrBot 的 `data/plugins/`，在 WebUI 配置：
+推荐用安装脚本同时部署 Supervisor、复制插件并生成首次配置：
+
+```bash
+ASTRBOT_DIR=/root/AstrBot sh scripts/install.sh
+```
+
+也可以手动把 `astrbot_plugin_vulnclaw/` 放到 AstrBot 的 `data/plugins/`，在 WebUI 配置：
 
 - `worker_url`: `http://127.0.0.1:8765`
 - `worker_secret`: 与 `.env` 完全一致
@@ -77,6 +83,8 @@ curl http://127.0.0.1:1145/healthz
 Web UI 是上游 VulnClaw 的独立运行模式，不复用 AstrBot 当前会话模型，也不经过
 QQ 审批、Supervisor 签名或 Worker scope。需要在 Web UI 中单独配置模型，且只能
 用于已授权目标。公网开放时还应在云防火墙中限制来源 IP，并优先通过 HTTPS 反向代理访问。
+任务只有在 `fetch` 或 `nmap_scan` 等网络工具真实成功后才会显示完成；模型未调用
+工具、工具失败或模型报错都会标记为失败，不能把纯文本结论当作执行结果。
 
 ## QQ 命令
 
@@ -217,3 +225,4 @@ docker compose up -d vulnclaw-supervisor
 
 内置源码固定为 VulnClaw 0.2.9。来源、校验值和升级流程见
 [`astrbot_plugin_vulnclaw/vendor/UPSTREAM.md`](astrbot_plugin_vulnclaw/vendor/UPSTREAM.md)。
+
