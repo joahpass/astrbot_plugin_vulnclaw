@@ -77,6 +77,17 @@ async def _run_task(manager: WebTaskManager, task_id: str, request: TaskCreateRe
             on_restored=on_restored,
             runner=runner_fn,
         )
+        _require_execution_evidence(agent, request)
+        manager.publish(
+            task_id,
+            "execution_verified",
+            {
+                "successful_tool_calls": sum(
+                    1 for item in agent.runtime.tool_calls if item.get("success")
+                ),
+                "total_tool_calls": len(agent.runtime.tool_calls),
+            },
+        )
         manager.set_completed(task_id, latest_message="Task finished", summary=run_result.summary)
     except asyncio.CancelledError:
         manager.set_stopped(task_id)
@@ -92,7 +103,7 @@ async def _run_single_task(
 ) -> None:
     prompt = _build_prompt_v2(request)
 
-    if request.command == "run":
+    if request.command in {"recon", "scan", "run", "exploit"}:
         max_rounds = request.options.max_rounds or agent.config.session.max_rounds
         results = await agent.auto_pentest(
             prompt,
@@ -244,3 +255,32 @@ def _build_prompt_v2(request: TaskCreateRequest) -> str:
     return (
         f"Perform a full authorized penetration test against {request.target}.{constraint_suffix}"
     )
+
+
+def _require_execution_evidence(agent: AgentCore, request: TaskCreateRequest) -> None:
+    """Reject narrative-only results and failed tool attempts.
+
+    Web tasks are action requests, so a model response is not completion evidence.
+    At least one real network action must have succeeded before the task can be
+    persisted as completed.
+    """
+    calls = list(getattr(agent.runtime, "tool_calls", []))
+    action_tools = {"fetch", "nmap_scan"}
+    successful = [
+        item
+        for item in calls
+        if item.get("success") and item.get("tool") in action_tools
+    ]
+    if successful:
+        return
+
+    failures = [
+        str(item.get("output", "")).strip()
+        for item in calls
+        if not item.get("success") and str(item.get("output", "")).strip()
+    ]
+    detail = failures[-1][:500] if failures else "模型没有调用任何网络执行工具"
+    raise RuntimeError(
+        f"任务未完成：没有可验证的网络工具执行证据（{request.command}）。{detail}"
+    )
+

@@ -289,6 +289,7 @@ class AgentCore:
         try:
             response_text = await call_llm(self, system_prompt)
             result.output = response_text
+            result.tool_calls = list(self.runtime.tool_calls)
 
             # Add assistant response to context
             self.context.add_assistant_message(response_text)
@@ -301,6 +302,8 @@ class AgentCore:
 
         except Exception as e:
             result.output = f"[!] Agent 错误: {e}"
+            result.should_continue = False
+            result.tool_calls = list(self.runtime.tool_calls)
 
         return result
 
@@ -401,7 +404,37 @@ class AgentCore:
 
     async def _execute_mcp_tool(self, tool_name: str, args: dict) -> str:
         """Execute a tool call via MCP manager or built-in tools."""
-        return await execute_mcp_tool(self, tool_name, args)
+        evidence_id = f"web-evidence-{len(self.runtime.tool_calls) + 1:03d}"
+        record = {
+            "evidence_id": evidence_id,
+            "tool": tool_name,
+            "arguments": dict(args),
+            "success": False,
+            "output": "",
+        }
+        try:
+            output = await execute_mcp_tool(self, tool_name, args)
+        except Exception as exc:
+            record["output"] = f"[!] 工具执行错误 ({tool_name}): {exc}"
+            self.runtime.tool_calls.append(record)
+            raise
+
+        clean = str(output or "")
+        failure_prefixes = (
+            "[!]",
+            "[constraint_violation]",
+            "[error]",
+            "[startup_error]",
+            "[sdk_unavailable]",
+            "[tool_unavailable]",
+            "[SKIP]",
+        )
+        record["success"] = bool(clean.strip()) and not clean.lstrip().startswith(
+            failure_prefixes
+        )
+        record["output"] = clean[:8000]
+        self.runtime.tool_calls.append(record)
+        return f"[evidence:{evidence_id}] {clean}"
 
     def _build_openai_tools(self) -> list[dict]:
         """Build OpenAI function calling schema from MCP tools + built-in tools."""
@@ -433,3 +466,4 @@ class AgentCore:
     def _update_recon_dimension_completion(self, response: str) -> None:
         """Auto-detect which recon dimensions have been explored."""
         update_recon_dimension_completion(self, response)
+
