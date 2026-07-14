@@ -5,7 +5,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from astrbot_plugin_vulnclaw.agent.adapter import AstrBotAgentRunner
+from astrbot_plugin_vulnclaw.agent.adapter import AgentUnavailableError, AstrBotAgentRunner
 from astrbot_plugin_vulnclaw.core.audit import AuditLogger
 from astrbot_plugin_vulnclaw.core.models import (
     TaskMode,
@@ -66,6 +66,42 @@ def test_agent_result_redacts_credentials() -> None:
     assert "xyz" not in parsed["report_markdown"]
 
 
+def test_agent_result_rejects_finding_without_successful_evidence() -> None:
+    parsed = AstrBotAgentRunner._parse_result(
+        task(),
+        '{"summary":"完成","findings":[{"title":"虚构漏洞","severity":"high",'
+        '"evidence":"模型声称存在","evidence_ids":["evidence-999"],'
+        '"remediation":"fix"}],"report_markdown":"# R"}',
+        evidence=[
+            {
+                "evidence_id": "evidence-001",
+                "tool": "fetch",
+                "success": True,
+                "result": {"status": 200},
+            }
+        ],
+    )
+    assert parsed["findings"] == []
+
+
+def test_agent_result_accepts_finding_with_successful_evidence() -> None:
+    parsed = AstrBotAgentRunner._parse_result(
+        task(),
+        '{"summary":"完成","findings":[{"title":"已验证","severity":"info",'
+        '"evidence":"HTTP 200","evidence_ids":["evidence-001"],'
+        '"remediation":"none"}],"report_markdown":"# R"}',
+        evidence=[
+            {
+                "evidence_id": "evidence-001",
+                "tool": "fetch",
+                "success": True,
+                "result": {"status": 200},
+            }
+        ],
+    )
+    assert parsed["findings"][0]["evidence_ids"] == ["evidence-001"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", [TaskMode.RECON, TaskMode.SCAN, TaskMode.EXPLOIT, TaskMode.REPORT])
 async def test_agent_uses_current_provider_and_fixed_tools(
@@ -121,3 +157,88 @@ async def test_agent_uses_current_provider_and_fixed_tools(
     )
     result = await runner(current)
     assert result["summary"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_agent_rejects_narrative_only_scan(tmp_path, monkeypatch) -> None:
+    class FakeFunctionTool:
+        def __init__(self, name, description, parameters):
+            self.name = name
+
+    class FakeToolSet:
+        def __init__(self, tools):
+            self.tools = tools
+
+    tool_module = ModuleType("astrbot.core.agent.tool")
+    tool_module.FunctionTool = FakeFunctionTool
+    tool_module.ToolSet = FakeToolSet
+    monkeypatch.setitem(sys.modules, "astrbot", ModuleType("astrbot"))
+    monkeypatch.setitem(sys.modules, "astrbot.core", ModuleType("astrbot.core"))
+    monkeypatch.setitem(sys.modules, "astrbot.core.agent", ModuleType("astrbot.core.agent"))
+    monkeypatch.setitem(sys.modules, "astrbot.core.agent.tool", tool_module)
+
+    class FakeWorker:
+        async def call_tool(self, task_id, name, arguments):
+            raise AssertionError("模型不应绕过工具")
+
+    class FakeContext:
+        async def get_current_chat_provider_id(self, umo):
+            return "provider-1"
+
+        async def tool_loop_agent(self, **kwargs):
+            return SimpleNamespace(
+                completion_text='{"summary":"扫描完成，无漏洞","findings":[],"report_markdown":"# 完成"}'
+            )
+
+    runner = AstrBotAgentRunner(
+        context=FakeContext(),
+        worker=FakeWorker(),
+        audit=AuditLogger(tmp_path),
+        event_resolver=lambda _umo: object(),
+    )
+    with pytest.raises(AgentUnavailableError, match="没有可验证的工具执行证据"):
+        await runner(task())
+
+
+@pytest.mark.asyncio
+async def test_agent_rejects_failed_worker_tool(tmp_path, monkeypatch) -> None:
+    class FakeFunctionTool:
+        def __init__(self, name, description, parameters):
+            self.name = name
+
+    class FakeToolSet:
+        def __init__(self, tools):
+            self.tools = tools
+
+    tool_module = ModuleType("astrbot.core.agent.tool")
+    tool_module.FunctionTool = FakeFunctionTool
+    tool_module.ToolSet = FakeToolSet
+    monkeypatch.setitem(sys.modules, "astrbot", ModuleType("astrbot"))
+    monkeypatch.setitem(sys.modules, "astrbot.core", ModuleType("astrbot.core"))
+    monkeypatch.setitem(sys.modules, "astrbot.core.agent", ModuleType("astrbot.core.agent"))
+    monkeypatch.setitem(sys.modules, "astrbot.core.agent.tool", tool_module)
+
+    class FakeWorker:
+        async def call_tool(self, task_id, name, arguments):
+            return {"ok": True, "success": False, "error": "nmap 不可用"}
+
+    class FakeContext:
+        async def get_current_chat_provider_id(self, umo):
+            return "provider-1"
+
+        async def tool_loop_agent(self, **kwargs):
+            output = await kwargs["tools"].tools[0].call(None, ports=[443])
+            assert '"success": false' in output
+            return SimpleNamespace(
+                completion_text='{"summary":"仍然声称完成","findings":[],"report_markdown":"# 完成"}'
+            )
+
+    runner = AstrBotAgentRunner(
+        context=FakeContext(),
+        worker=FakeWorker(),
+        audit=AuditLogger(tmp_path),
+        event_resolver=lambda _umo: object(),
+    )
+    with pytest.raises(AgentUnavailableError, match="nmap 不可用"):
+        await runner(task())
+
